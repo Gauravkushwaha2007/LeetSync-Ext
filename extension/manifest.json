@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "AutoSync",
+  "version": "2.0.0",
+  "description": "Queue accepted LeetCode submissions and sync them to your GitHub repository.",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Open AutoSync", "default_popup": "popup.html" },
+  "options_page": "dashboard.html",
+  "content_scripts": [
+    { "matches": ["https://leetcode.com/*"], "js": ["content.js"], "run_at": "document_start" },
+    { "matches": ["https://leetcode.com/*"], "js": ["capture.js"], "run_at": "document_start", "world": "MAIN" }
+  ]
+}

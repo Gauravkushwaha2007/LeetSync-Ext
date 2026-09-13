@@ -1,0 +1,99 @@
+'use strict';
+const crypto = require('node:crypto');
+
+const sessions = new Map();
+const pending = new Map();
+
+function configFrom(env = process.env) {
+  const clientId = env.GITHUB_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = env.GITHUB_OAUTH_CLIENT_SECRET?.trim();
+  const callback = (env.GITHUB_OAUTH_CALLBACK || 'http://127.0.0.1:3000/oauth/callback').trim();
+  if (!clientId || !clientSecret) throw new Error('GitHub OAuth is not configured. Set GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET in server/.env.');
+  if (!/^http:\/\/127\.0\.0\.1:\d+\/oauth\/callback$/.test(callback)) throw new Error('GITHUB_OAUTH_CALLBACK must use http://127.0.0.1:<port>/oauth/callback.');
+  return { clientId, clientSecret, callback };
+}
+
+function randomToken(bytes = 32) { return crypto.randomBytes(bytes).toString('base64url'); }
+function targetFor(owner, repo, branch, folder) { return crypto.createHash('sha256').update(JSON.stringify([owner, repo, branch, folder])).digest('hex').slice(0, 24); }
+function cleanRepo(repo) {
+  if (!repo || typeof repo !== 'object' || !repo.owner?.login || !repo.name || !repo.id) throw new Error('Invalid repository.');
+  return { id: String(repo.id), owner: repo.owner.login, name: repo.name, fullName: repo.full_name, private: !!repo.private, defaultBranch: repo.default_branch || 'main' };
+}
+
+async function github(endpoint, options = {}) {
+  const response = await fetch(`https://api.github.com${endpoint}`, {
+    ...options,
+    headers: { Accept:'application/vnd.github+json', 'Content-Type':'application/json', 'User-Agent':'AutoSync/2.1', 'X-GitHub-Api-Version':'2026-03-10', ...(options.headers || {}) },
+    signal: AbortSignal.timeout(15000)
+  });
+  let data; try { data = await response.json(); } catch { data = {}; }
+  return { response, data };
+}
+
+function begin(state, codeChallenge, callback, env = process.env) {
+  const cfg = configFrom(env);
+  if (!/^[A-Za-z0-9_-]{20,200}$/.test(state) || !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) throw new Error('Invalid OAuth request.');
+  pending.set(state, { createdAt: Date.now(), callback, codeChallenge });
+  const url = new URL('https://github.com/login/oauth/authorize');
+  url.searchParams.set('client_id', cfg.clientId);
+  url.searchParams.set('redirect_uri', cfg.callback);
+  url.searchParams.set('state', state);
+  url.searchParams.set('code_challenge', codeChallenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  url.searchParams.set('scope', 'repo');
+  url.searchParams.set('allow_signup', 'false');
+  return url.toString();
+}
+
+async function callback(code, state, env = process.env) {
+  const req = pending.get(state);
+  if (!req || Date.now() - req.createdAt > 10 * 60 * 1000) throw new Error('OAuth request expired. Start GitHub connection again.');
+  pending.delete(state);
+  const cfg = configFrom(env);
+  const body = new URLSearchParams({ client_id:cfg.clientId, client_secret:cfg.clientSecret, code, redirect_uri:cfg.callback, code_verifier:req.codeChallenge });
+  const tokenResult = await fetch('https://github.com/login/oauth/access_token', { method:'POST', headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded','User-Agent':'AutoSync/2.1'}, body, signal:AbortSignal.timeout(15000) });
+  const tokenData = await tokenResult.json().catch(()=>({}));
+  if (!tokenResult.ok || !tokenData.access_token) throw new Error(tokenData.error_description || 'GitHub authorization failed.');
+  const me = await github('/user', { headers:{Authorization:`Bearer ${tokenData.access_token}`} });
+  if (!me.response.ok || !me.data.login) throw new Error('GitHub account could not be verified.');
+  const sessionId = randomToken();
+  sessions.set(sessionId, { token:tokenData.access_token, user:{login:me.data.login,id:me.data.id,avatar:me.data.avatar_url}, repository:null, createdAt:Date.now() });
+  return { sessionId, user:{login:me.data.login,id:me.data.id,avatar:me.data.avatar_url} };
+}
+
+function get(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) throw new Error('GitHub session expired. Connect GitHub again.');
+  if (Date.now() - session.createdAt > 30 * 24 * 60 * 60 * 1000) { sessions.delete(sessionId); throw new Error('GitHub session expired. Connect GitHub again.'); }
+  return session;
+}
+
+async function repositories(sessionId) {
+  const session = get(sessionId);
+  const all=[];
+  for(let page=1; page<=5; page++) {
+    const r=await github(`/user/repos?per_page=100&page=${page}&sort=updated&affiliation=owner,collaborator,organization_member`,{headers:{Authorization:`Bearer ${session.token}`} });
+    if(!r.response.ok) throw new Error(r.data.message || 'GitHub repositories could not be loaded.');
+    all.push(...r.data.map(cleanRepo));
+    if(r.data.length<100) break;
+  }
+  return all;
+}
+
+function selectRepository(sessionId, repo, branch='', folder='LeetCode') {
+  const session=get(sessionId);
+  const owner=String(repo.owner||''); const name=String(repo.name||'');
+  if(!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)||!/^[A-Za-z0-9_.-]+$/.test(name)||['.','..'].includes(name)) throw new Error('Invalid repository selection.');
+  if(branch && !/^[A-Za-z0-9._\/-]+$/.test(branch)) throw new Error('Invalid branch.');
+  if(!/^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(folder)) throw new Error('Invalid folder.');
+  const branchName=branch || repo.defaultBranch || 'main';
+  session.repository={owner,name,fullName:`${owner}/${name}`,branch:branchName,folder,target:targetFor(owner,name,branchName,folder)};
+  return session.repository;
+}
+
+function auth(sessionId) { return get(sessionId); }
+function remove(sessionId) { sessions.delete(sessionId); }
+function cleanup() { const now=Date.now(); for(const [k,v] of pending) if(now-v.createdAt>10*60*1000) pending.delete(k); for(const [k,v] of sessions) if(now-v.createdAt>30*24*60*60*1000) sessions.delete(k); }
+setInterval(cleanup, 60*1000).unref();
+
+module.exports={configFrom,begin,callback,repositories,selectRepository,auth,remove};

@@ -1,0 +1,8 @@
+{
+ "name":"autosync",
+ "version":"3.0.0",
+ "private":true,
+ "description":"Per-user GitHub OAuth and automatic LeetCode solution sync",
+ "engines":{"node":">=22"},
+ "scripts":{"test":"node --test tests/*.test.js","configure-release":"node scripts/configure-release.js","start:oauth":"node oauth-service/app.js"}
+}

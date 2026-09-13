@@ -1,0 +1,7 @@
+**/.env
+**/node_modules/
+*.log
+*.zip
+*.exe
+.DS_Store
+test-results/

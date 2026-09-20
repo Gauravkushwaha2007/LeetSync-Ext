@@ -7,7 +7,6 @@
     try { const u=new URL(raw,location.href); return u.origin===location.origin ? u.pathname : ''; } catch { return ''; }
   }
   function parse(body) { try { return typeof body==='string' ? JSON.parse(body) : null; } catch { return null; } }
-  function observe(url, method, body, data) {
     const pathname=endpoint(url);
     const match=pathname.match(/^\/problems\/([a-z0-9-]+)\/submit\/?$/);
     const now=Date.now();
@@ -18,7 +17,7 @@
       if(pending.size>=30)pending.delete(pending.keys().next().value);
       pending.set(String(data.submission_id),{at:now,slug:match[1],language:input.lang,code:input.typed_code,submissionId:String(data.submission_id)});
     }
-    const check=pathname.match(/^\/submissions\/detail\/(\d+)\/check\/?$/);
+    const check=pathname.match(/^\/submissions\/detail\/(\d+)(?:\/v2)?\/check\/?$/);
     if(!check || !pending.has(check[1]) || data?.state!=='SUCCESS')return;
     const submission=pending.get(check[1]);pending.delete(check[1]);
     if(data.status_code===10)window.postMessage({source:'autosync-v2',type:'accepted',submission},location.origin);

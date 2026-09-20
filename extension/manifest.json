@@ -10,7 +10,8 @@
     "identity"
   ],
   "host_permissions": [
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://autosync-oauth.onrender.com/*"
   ],
   "background": {
     "service_worker": "background.js"

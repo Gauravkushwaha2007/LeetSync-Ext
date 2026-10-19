@@ -8,7 +8,7 @@
     if(typeof s.title!=='string' || !s.title.trim() || s.title.length>200 || /[\x00-\x1f]/.test(s.title))throw new Error('Enter a valid title.');
     if(!['Easy','Medium','Hard','Unknown'].includes(s.difficulty))throw new Error('Select a valid difficulty.');
     if(typeof s.submissionId!=='string' || (s.submissionId && !/^\d{1,30}$/.test(s.submissionId)))throw new Error('Invalid submission ID.');
-    return {slug:s.slug,title:s.title.trim(),code:s.code,language:s.language,difficulty:s.difficulty,submissionId:s.submissionId};
+    return {slug:s.slug,title:s.title.trim(),code:s.code,language:({'c++':'cpp','c#':'csharp','go':'golang'}[s.language]||s.language),difficulty:s.difficulty,submissionId:s.submissionId};
   }
   function retry(attempts, now, seconds=0) { return now+Math.max(Math.min(3600000,30000*2**Math.min(attempts,8)),seconds*1000); }
   function terminal(s){return ['synced','unchanged'].includes(s);}

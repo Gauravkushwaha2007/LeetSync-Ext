@@ -1,3 +1,7 @@
+# Historical v1 → v2 review
+
+This is the review of the original input; the v2 local companion it describes was retired in v3. See ARCHITECTURE.md and CHANGELOG.md for the implemented OAuth architecture.
+
 # Review of the supplied AutoSync project
 
 The input ZIP used the top-level name `LeetSync`, while its extension manifest named the app AutoSync 1.0.0. The working application consisted of `extension/content.js`, `extension/manifest.json` and `server/app.js`, with an Express/cors/dotenv package setup. It also included a Git repository, installed dependencies, a populated `.env`, unrelated C++ experiments and compiled Windows executables.

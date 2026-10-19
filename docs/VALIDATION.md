@@ -1,42 +1,35 @@
-# Validation report — AutoSync 2.0.0
+# AutoSync 3.0 validation
 
-## Completed in this environment
+Command: `npm test` at the project root. Runtime: Node.js 24.19.0 on Linux; declared minimum Node 22.
 
-- Runtime: Node.js 24.19.0 on Linux. Minimum declared runtime: Node 22.
-- Command: `cd server` then `npm test`.
-- **25 automated tests passed, 0 failed.**
-- All 15 JavaScript files passed `node --check`.
-- All manifest entry points resolve to packaged files.
-- Dashboard/popup HTML: unique IDs, all JavaScript ID references present, all linked scripts/stylesheets present.
-- Delivery archive audited to exclude `.env`, Git history, installed dependencies, executables, caches, user source submissions and runtime logs.
+**39 automated tests passed; 0 failed.** Tests use protocol fixtures/mock GitHub responses and a real local HTTP server for broker checks. No real OAuth app registration, live GitHub authorization or repository commits were performed.
 
-## Test coverage
+Coverage includes:
 
-| Area | Verified behavior |
-| --- | --- |
-| Capture | Full multiline source, submission-ID matching, multiple accepted submissions, pending/rejected verdicts, Run exclusion, cross-origin exclusion, fetch and XHR |
-| Queue | Duplicate suppression, unfinished-item limits, completed-history retention, retry timing, validation |
-| Worker | Concurrent captures, serialized persistence, restart, offline recovery, source retention on failure, source removal after success, stale in-flight recovery, message access controls, destination mismatch, older-job ordering |
-| GitHub client | Create/update, branch selection, UTF-8, file SHA, identical-content no-op, error classification, conflict refresh, rate-limit timing, network failure, destination pinning |
-| Local HTTP service | Real local requests: health, authentication, origins, preflight, malformed body, validation, upload with simulated GitHub, metadata-only log |
+- PKCE challenge derivation, OAuth state rejection, declined authorization, exact callback checking, malformed token rejection and fail-closed public configuration.
+- Broker origin/callback/verifier validation, server-only app secret, sanitized errors, fixed provider endpoints, refresh and revoke routes.
+- Account identification, per-account queue isolation, account switching during upload, reconnecting an existing account, concurrent capture deduplication and content-script access controls.
+- Refresh rotation and identity checking, mismatched identity rejection, login cancellation during disconnect and v2 migration.
+- Writable repository filtering and pagination, explicit branch/destination fingerprinting, rename-safe repository IDs, create/update SHA handling, UTF-8, duplicate content and error classification.
+- Full fetch/XHR submission capture, acceptance matching, multiple submissions, Run/rejected exclusions, queue limits, retention and backoff.
 
-GitHub calls use simulated responses. No real repository commits or live account authentication were performed. No credential from the original archive was used.
+All packaged JavaScript is syntax checked, and manifest/UI script/style references are checked before packaging. Source archive excludes original secrets, Git history, dependencies and executables.
 
-## Remaining limitations
+## Not verified here
 
-Browser-based visual and end-to-end extension tests could not run here. Playwright was present but Chromium was absent; installation failed with HTTP 502/network timeouts. Static UI and JavaScript checks passed, but do not replace rendering in Chrome/Edge.
+- Live GitHub account authorization, publisher app configuration, hosted HTTPS service, Chrome Web Store registration or publication.
+- Browser-rendered dashboard and full extension runtime end-to-end flow. Chromium was unavailable in the environment; the earlier download attempt failed. Static checks are not visual/browser certification.
+- Real LeetCode request formats against a logged-in account. Capture fixtures are representative, not a promise of future website compatibility.
+- Node 22 itself or Windows/Edge execution.
 
-LeetCode's live website and private request formats were not verified using an authenticated account. Capture tests use representative submission/check payloads. Windows launchers and the interactive hidden-token prompt were not run on Windows. Node 22 was not available; tests ran on Node 24.19.0.
+## Publisher live smoke test
 
-## Live smoke test on your computer
-
-1. Revoke the token exposed in the original ZIP; create a replacement scoped to a test repository with Contents read/write access. Initialize the repository with a README.
-2. Run setup and start the companion. Disable v1, load v2 unpacked, and save/test the pairing key in Settings.
-3. Check dashboard/popup layout, navigation, search and status filters at your normal screen size.
-4. Submit a new accepted solution. Confirm the toast and synced entry. Compare the entire GitHub source, indentation and final lines with the submitted code.
-5. Submit a second solution in the same tab and one in another language. Verify separate file paths/extensions.
-6. Stop the companion, submit another accepted solution, and confirm its code stays in the retry queue. Restart the companion, retry, and verify successful upload.
-7. Pause sync, add a manual solution, restart the browser, and verify it remains pending. Resume and check the result.
-8. Export history and confirm no credentials appear. Remove a completed local entry and verify its GitHub file remains.
-
-This is a source release ready for local setup and smoke testing; it is not a claim of live-account or store-release certification.
+1. Configure a publisher-owned app, exact extension callback and HTTPS broker as in PUBLISHER.md. Load the configured extension with that ID.
+2. Connect GitHub account A. Confirm authorization occurs only on github.com and that the detected identity is correct.
+3. Select A's repository and branch; submit accepted code and compare the complete GitHub source.
+4. Switch to account B. Confirm A's history/destination disappear from the active workspace. Select B's repository and repeat.
+5. Return to A and confirm only A's queue/settings return. Test switching accounts during an upload; any sent upload must stay in A's repository.
+6. Test public-only authorization, explicit private access, organizations that restrict OAuth, read-only repos and protected branches.
+7. Test cancellation, invalid/expired authorization, token renewal, network outage/retry and disconnect/revoke.
+8. Inspect popup/dashboard at normal and small widths. Exercise repo/branch pagination, search, manual entry, pause/resume and export. Verify exports have no credentials.
+9. Audit the final configured extension ZIP and hosting logging policy before Web Store submission.

@@ -1,117 +1,240 @@
-# AutoSync 2.0
+# AutoSync
 
-A Chrome/Edge extension and local Node.js companion that syncs newly accepted LeetCode submissions to a GitHub repository you choose.
+<div align="center">
 
-## What changed
+### LeetCode → GitHub, automatically.
 
-- **Complete submitted code:** observes the submission request and matches its submission ID to an accepted verdict. No editor-line scraping, truncation, or delayed capture of later edits.
-- **Multiple submissions per session:** works without the old one-upload-per-page flag, including problem changes in the same tab.
-- **27 language identifiers:** C++, C, Java, Python/Python3, JavaScript, TypeScript, C#, Go, Rust, Kotlin, Swift, Ruby, Scala, PHP, Dart, Racket, Erlang, Elixir, SQL dialects, Bash and aliases.
-- **Persistent queue:** pause/resume, capped automatic retries with backoff, actionable errors, manual retry and crash recovery.
-- **A full workspace:** light green overview, counters, recent activity, search/status filters, manual solution form, settings, and JSON history export.
-- **Configurable destination:** repository, existing branch and folder. No hardcoded account.
-- **GitHub OAuth:** users can connect their GitHub account through the browser authorization flow instead of entering a personal access token. The server keeps the OAuth client secret local and the extension stores only its temporary session identifier.
-- **Safer GitHub writes:** SHA-aware updates, Unicode preservation, identical-content detection, conflict retries and ordered local writes.
-- **Local service:** binds to `127.0.0.1`; the OAuth callback also uses a loopback address.
-- **No npm dependencies:** uses Node.js built-ins, including its test runner. No `npm install` needed for normal use.
+A Chrome extension that connects your GitHub account with LeetCode and automatically syncs your **accepted solutions** to a repository you choose.
 
-## Quick start on Windows
+<br/>
 
-### 1. Configure GitHub OAuth (developer setup)
+[![Manifest V3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/develop/migrate)
+[![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![GitHub OAuth](https://img.shields.io/badge/GitHub-OAuth-181717?style=for-the-badge&logo=github&logoColor=white)](https://docs.github.com/en/apps/oauth-apps)
+[![Tests](https://img.shields.io/badge/tests-39%20passing-2ea44f?style=for-the-badge)](#validation)
 
-This repository currently uses a GitHub OAuth App for the local companion prototype. Create the OAuth App in GitHub Developer Settings and set the callback URL exactly to:
+</div>
 
-```text
-http://127.0.0.1:3000/oauth/callback
-```
+---
 
-Then create `server/.env` from `.env.example` and set:
+## ✨ What AutoSync does
 
-```text
-GITHUB_OAUTH_CLIENT_ID=your_client_id
-GITHUB_OAUTH_CLIENT_SECRET=your_client_secret
-GITHUB_OAUTH_CALLBACK=http://127.0.0.1:3000/oauth/callback
-PORT=3000
-```
+AutoSync removes the repetitive work of copying LeetCode solutions into GitHub.
 
-The OAuth client secret must remain on the local server and must never be placed inside the extension source.
+**Solve → Submit → Accepted → GitHub**
 
-### 2. Start the companion
+After GitHub authorization, you choose the repository and branch once. AutoSync then captures the code belonging to the accepted submission and uploads it directly to your selected GitHub destination.
 
-Install Node.js 22 or newer if needed. From the extracted project:
+### Highlights
 
-```powershell
-cd "D:\AutoSync\server"  # replace with your extracted folder
-npm start
-```
+- 🔐 **GitHub OAuth + PKCE** — no personal access token or pairing key for users
+- 👤 **Per-user GitHub accounts** — each user authorizes their own account
+- 📦 **Repository & branch selection** — choose where solutions should go
+- ⚡ **Automatic accepted-submission sync**
+- 🧠 **Complete submitted source capture** — preserves the actual submitted code
+- 🔁 **Queue, retry & recovery** — transient failures are retained and retried
+- 🛡️ **SHA-aware GitHub writes** — safer updates and conflict handling
+- 🚫 **Duplicate detection** — identical code does not create unnecessary commits
+- 📊 **Activity dashboard** — sync history, queue state and actionable errors
+- 🌐 **Direct GitHub uploads** — solution source does not pass through the OAuth broker
 
-The service should report that AutoSync is running on `127.0.0.1:3000`.
+---
 
-### 3. Load the extension
+## 🚀 Installation
 
-1. Open `chrome://extensions` (Edge: `edge://extensions`).
-2. Remove or disable an older AutoSync/LeetSync build first, so two extensions cannot upload the same submission.
-3. Enable **Developer mode** → **Load unpacked**.
-4. Select this project's `extension` folder.
-5. Open AutoSync from the extension toolbar.
-6. Choose **Connect GitHub**.
-7. Authorize the GitHub account in the browser.
-8. Select the repository, branch and destination folder.
+### Chrome Web Store
 
-No GitHub personal access token or pairing key is required by the OAuth flow.
+> **Coming soon.** The current release is distributed as a developer/unpacked extension while Web Store publishing is being prepared.
 
-### 4. Solve normally
+### Manual installation
 
-Submit a solution on LeetCode. A newly observed **Accepted** result saves the actual submitted code to the queue and uploads it to the selected GitHub repository. A **Run** result does not trigger uploads.
+If you need to run AutoSync without the Chrome Web Store:
 
-Previously accepted submissions and submissions sent before the extension loaded are not captured retroactively; use **Add solution** for those.
+**[⬇️ Download AutoSync ZIP](https://github.com/Gauravkushwaha2007/LeetSync-Ext/archive/refs/heads/v3-oauth.zip)**
 
-## How files are organized
+1. Download and extract the ZIP.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Click **Load unpacked**.
+5. Select the extracted `extension` folder.
+6. Open AutoSync and connect your GitHub account.
+
+> The ZIP contains the complete project. When loading the extension, select the **`extension` folder**, not the project root.
+
+---
+
+## 🔄 User flow
 
 ```text
-LeetCode/two-sum/cpp/solution.cpp
-LeetCode/two-sum/python3/solution.py
-LeetCode/reverse-string/java/solution.java
+Install AutoSync
+      ↓
+Connect GitHub
+      ↓
+Authorize account
+      ↓
+Choose repository + branch
+      ↓
+Open LeetCode
+      ↓
+Submit solution
+      ↓
+Accepted
+      ↓
+AutoSync captures submitted code
+      ↓
+GitHub
 ```
 
-Each problem and language has its own file. Python/Python3 and SQL dialects remain separate. Difficulty is metadata, not a folder: missing or changing difficulty will not move code. Files contain the exact code, without generated headers that might invalidate SQL or other languages. Git commits supply version history.
+Users do **not** need to create a GitHub personal access token, install Node.js, run a local server, enter a pairing key, or edit configuration files in a configured release.
 
-## Queue behavior
+---
 
-- Queued source is stored in `chrome.storage.local` and survives browser restarts.
-- Pause stops new uploads but still captures new submissions. An already-running upload can finish.
-- One job runs immediately after enqueue/resume/retry. A one-minute alarm processes additional due jobs.
-- Transient network/server failures, GitHub rate limits, and conflicts retry with exponential backoff up to eight attempts. Permanent errors need correction and manual retry.
-- Older unfinished entries block newer entries for the same destination/problem/language to prevent stale code overwrites.
-- Identical destination/problem/language/code is deduplicated. Identical content already on GitHub produces no new commit.
-- A destination fingerprint is pinned to each queued item so changing repositories cannot silently redirect old queued submissions.
-- Export includes history and pending source code, never connection credentials.
+## 🧩 Architecture
 
-## Development and validation
+```text
+┌─────────────────────┐
+│      LeetCode       │
+│  Submit / Accepted  │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Chrome Extension    │
+│ Capture + Queue     │
+└───────┬─────────────┘
+        │
+        ├──────────────► GitHub API
+        │
+        │
+        ▼
+┌─────────────────────┐
+│ OAuth Broker        │
+│ Render / Node.js    │
+│ PKCE token exchange │
+└──────────┬──────────┘
+           │
+           ▼
+        GitHub OAuth
+```
 
-```sh
-cd server
+The OAuth broker handles authorization-related exchanges. Repository writes are performed directly by the extension against GitHub's API.
+
+---
+
+## 📁 Repository structure
+
+```text
+LeetSync-Ext/
+├── extension/          # Chrome Manifest V3 extension
+├── oauth-service/      # Stateless GitHub OAuth broker
+├── scripts/            # Release configuration utilities
+├── tests/              # Automated tests
+└── docs/               # Architecture, privacy, validation & publishing
+```
+
+---
+
+## 🧪 Validation
+
+The current automated test suite contains **39 tests** covering:
+
+- OAuth / PKCE
+- broker security
+- GitHub repository handling
+- submission capture
+- queue persistence
+- retries and conflicts
+- account isolation
+- migration behavior
+- extension validation
+
+Run locally:
+
+```bash
 npm test
 ```
 
-The automated tests use Node's built-in test runner and simulated GitHub responses; they do not spend tokens, contact user accounts, or write to a real repository. See `docs/VALIDATION.md` for validation details.
+Current result:
 
 ```text
-AutoSync/
-  extension/           Manifest V3 extension and dashboard
-  server/              Local OAuth service and GitHub sync logic
-  tests/               Automated regression tests
-  docs/                Project review and validation
-  setup.cmd            Windows setup launcher
-  start.cmd            Windows service launcher
+39 tests
+39 passed
+0 failed
 ```
 
-## Scope and privacy
+---
 
-AutoSync supports desktop Chrome/Edge and leetcode.com. It is not an Android app or a cloud service. It captures submissions observed while the tab remains loaded, with an in-memory capture window of 15 minutes.
+## ⚙️ Development
 
-LeetCode's submission/check endpoints are not a guaranteed public integration contract. The extension observes matching fetch and XMLHttpRequest traffic and returns original responses unchanged. It does not scrape virtual editor lines or send cookies to the companion.
+Requirements:
 
-GitHub OAuth credentials and source code are sensitive. Never commit `server/.env`, OAuth client secrets, or extension exports containing source code. The current OAuth session is held by the local companion and is intentionally not written into the repository.
+- Node.js 22+
+- Google Chrome or Microsoft Edge
+- A GitHub OAuth application for live OAuth testing
+- A hosted OAuth broker for configured releases
 
-GitHub OAuth is currently implemented as a local-companion prototype. For a public distributed release, the OAuth client secret should be moved behind a hosted backend or the authentication architecture should be changed so the secret is never required on an end user's machine.
+Publisher setup is documented in:
+
+- [Publisher Guide](docs/PUBLISHER.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Privacy](docs/PRIVACY.md)
+- [Validation](docs/VALIDATION.md)
+
+---
+
+## ⚠️ Current status
+
+**AutoSync v3.0.0 is functionally implemented and live-tested locally.**
+
+Current status:
+
+- ✅ GitHub OAuth flow tested
+- ✅ Repository selection tested
+- ✅ LeetCode accepted-submission capture tested
+- ✅ GitHub upload tested
+- ✅ Render OAuth broker deployed
+- ✅ 39 automated tests passing
+- ⏳ Chrome Web Store publication pending
+
+LeetCode's submission/check endpoints are not a guaranteed public integration contract, so request-format changes by LeetCode may require future maintenance.
+
+---
+
+## 🔒 Security & privacy
+
+AutoSync is designed around a few clear boundaries:
+
+- OAuth client secrets stay on the server.
+- GitHub OAuth uses PKCE and state validation.
+- The extension does not ask users for personal access tokens.
+- The OAuth broker is not used as a repository-write proxy.
+- OAuth credentials are kept out of the extension source.
+- Submission capture is limited to matching LeetCode submission/check traffic.
+
+See [PRIVACY.md](docs/PRIVACY.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+
+---
+
+## 📌 Roadmap
+
+- [x] GitHub OAuth
+- [x] PKCE authentication
+- [x] Repository selection
+- [x] Automatic accepted-solution sync
+- [x] Persistent queue & retry system
+- [x] Dashboard
+- [x] Security-focused test suite
+- [x] Manual ZIP installation
+- [ ] Chrome Web Store release
+- [ ] Manual/Force Push action
+- [ ] Additional sync customization
+
+---
+
+<div align="center">
+
+### Built to make LeetCode → GitHub completely automatic.
+
+**Solve. Accept. Sync.**
+
+</div>
